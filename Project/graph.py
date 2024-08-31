@@ -1,56 +1,79 @@
-from node import Node
-from edge import Edge
+import json
 import heapq
+from collections import defaultdict
 
 class Graph:
     def __init__(self):
-        self.node_frequency = {}  # Tracks the number of times a node appears in shortest paths
-        self.adj = {}  # Adjacency list to store edges for shortest path calculations
-    
+        self.adjacency_list = defaultdict(list)  # Adjacency list for nodes
+        self.stop_to_nodes = defaultdict(list)   # Map from stop_id to a list of nodes
+        self.stop_frequency = defaultdict(int)   # Frequency of stop_ids in shortest paths
+
     def add_edge(self, start_node, end_node, edge):
-        if start_node.stop_id not in self.adj:
-            self.adj[start_node.stop_id] = []
-        self.adj[start_node.stop_id].append((end_node, edge))
+        self.adjacency_list[start_node].append((end_node, edge))
+        self.stop_to_nodes[start_node.stop_id].append(start_node)
+        self.stop_to_nodes[end_node.stop_id].append(end_node)
 
-        if start_node.stop_id not in self.node_frequency:
-            self.node_frequency[start_node.stop_id] = 0
-        if end_node.stop_id not in self.node_frequency:
-            self.node_frequency[end_node.stop_id] = 0
-    
-    def print_graph(self):
-        print("Nodes and their frequencies:")
-        for node_id, freq in self.node_frequency.items():
-            print(f"Node ID: {node_id}, Frequency: {freq}")
-        
-        print("\nEdges in the graph:")
-        for node_id, edges in self.adj.items():
-            print(f"Start Node ID: {node_id}")
-            for end_node, edge in edges:
-                print(f"  --> End Node ID: {end_node.stop_id}, Edge: {edge.time_diff}")
-                
+    def dijkstra(self, start_stop_id, end_stop_id):
+        pq = []
+        # Start with the nodes corresponding to the start_stop_id, prioritizing by earliest departure
+        for start_node in self.stop_to_nodes[start_stop_id]:
+            heapq.heappush(pq, ((0, 0), start_node.stop_id, start_node.timestamp, 0))  # (weight, stop_id, departure_time, arrival_time)
 
-    #For each pair of stops, you are asked to find the shortest path with the least weight.
-    #And if two paths for the pair (i, j) have the same weight, choose the path with the earliest departure time and, if needed, the earliest arrival time. 
-    #Use these shortest paths to find the top k most important bus stops.
-    def dijkstra(self, start_node_id):
-        # Initialize distances to infinity
-        dist = {node_id: float('inf') for node_id in self.adj}
-        dist[start_node_id] = 0
-
-        # Initialize priority queue with start node
-        pq = [(0, start_node_id)]
-        heapq.heapify(pq)
+        distances = defaultdict(lambda: (float('inf'), float('inf')))
+        distances[start_stop_id] = (0, 0)
+        previous = {}
 
         while pq:
-            cur_dist, cur_node_id = heapq.heappop(pq)
-            if cur_dist > dist[cur_node_id]:
-                continue
+            current_weight, current_stop_id, current_time, current_arrival_time = heapq.heappop(pq)
+            current_node = next(node for node in self.stop_to_nodes[current_stop_id] if node.timestamp == current_time)
 
-            for neighbor, edge in self.adj[cur_node_id]:
-                new_dist = dist[cur_node_id] + edge.time_diff
-                if new_dist < dist[neighbor.stop_id]:
-                    dist[neighbor.stop_id] = new_dist
-                    heapq.heappush(pq, (new_dist, neighbor.stop_id))
-        
-        return dist            
+            if current_stop_id == end_stop_id:
+                break
+
+            for neighbor, edge in self.adjacency_list.get(current_node, []):
+                new_weight = (current_weight[0] + edge.transfers, current_weight[1] + edge.time_diff)
+                new_arrival_time = current_time + edge.time_diff
+
+                # Determine if the new path is better, considering weight and time
+                is_better_path = (
+                    new_weight < distances[neighbor.stop_id] or
+                    (new_weight == distances[neighbor.stop_id] and current_time < distances[neighbor.stop_id][1]) or
+                    (new_weight == distances[neighbor.stop_id] and current_time == distances[neighbor.stop_id][1] and new_arrival_time < current_arrival_time)
+                )
+
+                if is_better_path:
+                    distances[neighbor.stop_id] = (new_weight, current_time)
+                    heapq.heappush(pq, (new_weight, neighbor.stop_id, neighbor.timestamp, new_arrival_time))
+                    previous[neighbor.stop_id] = current_stop_id
+
+        path = self.reconstruct_path(previous, start_stop_id, end_stop_id)
     
+        for stop_id in path:
+            self.stop_frequency[stop_id] += 1
+
+        return path, distances[end_stop_id]
+
+    def reconstruct_path(self, previous, start_stop_id, end_stop_id):
+        path = []
+        current_stop_id = end_stop_id
+        while current_stop_id:
+            path.append(current_stop_id)
+            current_stop_id = previous.get(current_stop_id)
+        path.reverse()
+        return path
+    
+    def find_all_shortest_paths(self):
+        all_stop_ids = list(self.stop_to_nodes.keys())
+        total_pairs = len(all_stop_ids) * (len(all_stop_ids) - 1) // 2
+
+        print(f"Calculating shortest paths for {total_pairs} pairs of stops...")
+        for i, start_stop_id in enumerate(all_stop_ids):
+            for j, end_stop_id in enumerate(all_stop_ids):
+                if start_stop_id != end_stop_id:
+                    self.dijkstra(start_stop_id, end_stop_id)
+        print("Finished calculating all shortest paths.")
+    
+    def save_stop_frequencies(self, file_path):
+        with open(file_path, 'w') as f:
+            json.dump(self.stop_frequency, f, indent=4)
+        print(f"Stop frequencies saved to {file_path}.")

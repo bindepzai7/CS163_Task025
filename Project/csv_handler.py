@@ -6,8 +6,7 @@ from edge import Edge
 class CSVHandler:
     def __init__(self):
         self.graph = Graph()
-        self.ListNode = {}
-        
+
     def read_csv(self, file_path):
         with open(file_path, mode='r') as csv_file:
             csv_reader = csv.reader(csv_file)
@@ -25,7 +24,7 @@ class CSVHandler:
                 )
 
                 transfer = 0 if Node1.route_id == Node2.route_id else 1
-                    
+
                 if Node1.node_type == 0 and Node2.node_type == 1:
                     start_node, end_node = Node1, Node2
                 elif Node1.node_type == 1 and Node2.node_type == 0:
@@ -34,12 +33,13 @@ class CSVHandler:
                     continue
                     
                 edge = Edge(transfers=transfer, time_diff=float(row[8]), edge_type=int(row[20]))
-                    
-                self.graph.add_edge(start_node, end_node, edge)
-                    
-                if start_node.stop_id not in self.ListNode:
-                    self.ListNode[start_node.stop_id] = start_node
-                if end_node.stop_id not in self.ListNode:
-                    self.ListNode[end_node.stop_id] = end_node
-                
 
+                # Add edge to the graph
+                self.graph.add_edge(start_node, end_node, edge)
+                
+    def print_graph(self):
+        for node, edges in self.graph.adjacency_list.items():
+            print(node.to_dict())
+            for edge in edges:
+                print(edge[0].to_dict(), edge[1].to_dict())
+            print()

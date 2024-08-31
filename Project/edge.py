@@ -10,11 +10,3 @@ class Edge:
             'time_diff': self.time_diff,
             'edge_type': self.edge_type
         }
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(
-            transfers=data['transfers'],
-            time_diff=data['time_diff'],
-            edge_type=data['edge_type']
-        )

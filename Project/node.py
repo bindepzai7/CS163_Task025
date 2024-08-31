@@ -19,13 +19,8 @@ class Node:
             'lngy': self.lngy
         }
 
-    def from_dict(cls, data):
-        return cls(
-            route_id=data['route_id'],
-            var_id=data['var_id'],
-            stop_id=data['stop_id'],
-            timestamp=data['timestamp'],
-            node_type=data['node_type'],
-            latx=data['latx'],
-            lngy=data['lngy']
-        )
+    def __eq__(self, other):
+        return (self.stop_id, self.timestamp) == (other.stop_id, other.timestamp)
+
+    def __hash__(self):
+        return hash((self.stop_id, self.timestamp))
